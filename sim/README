@@ -1,0 +1,123 @@
+#!/bin/tcsh -f
+#
+# Examples of various invocations of the simulator
+#
+# Use script ./regressMe now to run regressions
+
+
+
+
+setenv PYTHONPATH .:../examples:../lib:../source
+
+# make the various m6502 testbenches
+sed 's/nop/dex/g' ../examples/v6502/v6502_nop_tb.py | sed 's/11101010/11001010/g' > ../examples/v6502/v6502_dex_tb.py
+sed 's/nop/inx/g' ../examples/v6502/v6502_nop_tb.py | sed 's/11101010/11101000/g' > ../examples/v6502/v6502_inx_tb.py
+# make a bidir nmos lib
+sed 's/UNMOS/NMOS/g' nmos_lib.py > bidir_nmos_lib.py
+
+# simple ../examples
+python sim.py --top domino_tb --filename ../examples/domino_tb.py --tracelist 'in0 in1 in2 - prech - n0 n1 n2 n3 - out ' --max 16 
+pypy sim.py --top cmos_tb --filename ../examples/cmos_tb.py --tracelist 'in0 in1 - n0 - out - vss vdd' --max 16 
+
+pypy sim.py --top passgates_tb --filename ../examples/passgates_tb.py --tracelist 'in0 in1 in2 in3 in4 in5 - n2 - out ' --max 16 
+
+pypy sim.py --top nmos_tb --filename ../examples/nmos_tb.py --tracelist 'in0 in1 - n0 - out - vss vdd' --max 16 
+pypy sim.py --top nmos2_tb --filename ../examples/nmos2_tb.py --tracelist 'clk rstb - in0 in1 in2 - net0 net1 - out1 out2 ' --max 16 
+pypy sim.py --top tristate_tb --filename ../examples/tristate_tb.py --tracelist 'in0 in1 in2 - en0 en1 en2 - n0 n1' --max 16 
+pypy sim.py --top bidir_tb --filename ../examples/bidir_tb.py --tracelist 'a b c - o - .nmos_maj_0_u.n0 .nmos_maj_0_u.n1' -v
+pypy sim.py --top count2_nmos_tb --filename ../examples/count2_nmos_tb.py --tracelist 'clk rstb cin - q1 q0 - .count2_0_u.q.b - .count2_0_u.dff0_u.* - .count2_0_u.d0 ' --max 16 
+pypy sim.py --top count4_nmos_tb --filename ../examples/count4_nmos_tb.py --tracelist 'clk rstb cin - q3 q2 q1 q0' --max 16 
+pypy sim.py --top count4_nmos_tb --filename ../examples/count4_nmos_tb.py --tracelist 'clk rstb cin - q3 q2 q1 q0 - .count4_0_u.q.b - .count4_0_u.d. -  .count4_0_u.n[0-7] ' --max 16 
+# ALU16 benchmarking
+# Logic first
+pypy sim.py --top alu16_tb --filename ../examples/alu16/alu16_tb.py --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' --max 64 
+pypy sim.py --top alu16_tb --filename ../examples/alu16/alu16_tb.py --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' --max 4096 > logic.log
+
+# Now run the nmos versions
+pypy sim.py --top alu16_tb --filename ../examples/alu16/alu16_nmos_tb.py --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' --max 64 
+pypy sim.py --top alu16_tb --filename ../examples/alu16/alu16_tb.py --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' --max 4096 > nmos.log
+
+diff nmos.log logic.log
+setenv PYTHONPATH .:../examples:../rombo:../examples/v6502
+
+# 6502 hard-wired databus ../examples
+pypy sim.py --top v6502_nop_tb --filename ../examples/v6502/v6502_nop_tb.py \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.pcl. '\
+    --tracelist '- v6502_0_u.ir. ' \
+    --tracelist '- v6502_0_u.clock. - v6502_0_u.adh. v6502_0_u.adl. - v6502_0_u.notidl. - v6502_0_u.idl.' \
+    --verbose --max 128
+
+pypy sim.py --top v6800_nop_tb --filename ../examples/v6800/v6800_nop_tb.py  \
+    --tracelist 'rstb_w - phi1_w phi2_w - v6800_0_u.n983 - addr.* - data.* -  rnw_w vma_w ba_w ' \
+    --tracelist '- v6800_0_u.dbi. - v6800_0_u.dbo. - v6800_0_u.pch. v6800_0_u.pcl. - v6800_0_u.abh. v6800_0_u.abl. ' \
+    --verbose --max 128
+
+pypy sim.py --top v6502_inx_tb --filename ../examples/v6502/v6502_inx_tb.py \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.notx. '\
+    --tracelist '- v6502_0_u.ir. ' \
+    --tracelist '- v6502_0_u.clock. ' \
+    --verbose  --max 128
+
+pypy sim.py --top v6502_dex_tb --filename ../examples/v6502/v6502_dex_tb.py \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.notx. '\
+    --tracelist '- v6502_0_u.ir. ' \
+    --tracelist '- v6502_0_u.clock. ' \
+    --verbose  --max 128
+
+# Proper 6502 ../examples !
+
+pushd ../examples/v6502
+foreach i (  `ls -1 *as` )
+    make  $i:r.ihex
+end
+popd
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "../examples/v6502/inc_test.ihex" --max 512 \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.pcl. ' \
+    --tracelist '- v6502_0_u.notx. - ramcsb_w '  --ramdump "filename=../examples/v6502/test.ram:lo=0:numbytes=16"   
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "../examples/v6502/programfortoday.ihex" \
+            --nostrobe --ramdump "filename=programfortoday.ram:lo=0:numbytes=256" --gateopt --max 1024000  
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "v6502/regresssion/mem_test.ihex" --max 256 \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.pcl. '
+## http://www.visual6502.org/JSSim?graphics=false&steps=4096&headlesssteps=250&a=0000&d=eaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaeaea4c0000&loglevel=0
+
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "../examples/v6502/jsr_test.ihex" --max 64 \
+    --tracelist 'rstb_w - phi0_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w - v6502_0_u.pch. ' \
+    --tracelist '- v6502_0_u.pcl. - v6502_0_u.idb. - v6502_0_u.idl. - v6502_0_u.adh. - v6502_0_u.sb. ' \
+    --tracelist '- v6502_0_u.s. ' \
+    --tracelist '- v6502_0_u.notx. - ramcsb_w '  
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "../examples/v6502/jssim_program.ihex" \
+    --max 500 --gateopt --nostrobe
+
+pypy sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py --romfile "../examples/v6502/mem_test.ihex" --max 4096 --ramdump "filename=../examples/v6502/mem_test.ram:lo=0:numbytes=128"
+
+setenv PYTHONPATH .:../examples:../rombo:../examples/v6800
+
+
+ pypy sim.py --top v6800_system_tb --filename ../examples/v6800/v6800_system_tb.py --romfile "../examples/v6800/mem_test.ihex"  --ramdump "filename=memtest.ram:numbytes=128" --tracelist '- rstb_w phi1_w phi2_w - addr.* - data.* - rnw_w vma_w - v6800_0_u.ir. - .*.acca. - .*.dbi. - .*.dbo.' \
+--tracelist ' - .*.pch5 - .*.n1766 - .*.inch5 .*.n138 - .*.abh5 .*.n161 - .*pch5_1 - .*idb5 .*n162' --gateopt --max 90 --debug 'v6800_0_u.t724'
+
+
+pypy sim.py --top v6800_system_tb --filename ../examples/v6800/v6800_system_tb.py --romfile "../examples/v6800/jssim_program.ihex" \
+    --tracelist '- rstb_w phi1_w phi2_w - addr.* - data.* - rnw_w vma_w - v6800_0_u.pch. v6800_0_u.pcl.' \
+    --tracelist '- .*.pcl0 .*pcl0_1 .*idb0 .*abl0 .*incl0 - .*n137 .*n137 .*n139 - .*phi2 .*n122' \
+    --tracelist '- .*n701 - .*n706 .*n849 .*Tx0 .*Td0_0' \
+    --tracelist '- .*n856 - .*n1312' \
+    --tracelist '- .*n1823 - .*n1405 - .*decode - .*i4 .*i5 - .*n1260 .*n1313 - .*sync' \
+    --max 512 -v 
+
+
+--tracemode event
+    --tracelist '- .*res .*n852' \
+    --tracelist '- .*n848 - .*n1186 .*n847' \
+    --tracelist '- .*n881 - .*n882 .*n960 .*Ta1' \
+    --tracelist '- .*n4 - .*Tr8 .*n965 .*n1149 - .*n1341 .*n2859 .*n976 - .*Tx2 .*n2860 .*n976'\
+    --tracelist '- .*n1152 - .*n2923 .*n842 .*n1374 - .*n2922 .*n1169 .*n960' \
+    --tracelist '- v6800_0_u.dbi. - v6800_0_u.dbo. ' \
+    --tracelist '- v6800_0_u.acca. - v6800_0_u.accb - v6800_0_u.ixh. v6800_0_u.ixl. - v6800_0_u.sph. v6800_0_u.spl. ' \
+
+
