@@ -1,7 +1,7 @@
 import gate
 import net
 from testbench import testbench
-from v6800 import v6800
+from source import v6800
 
 
 class v6800_nop_tb(testbench):
