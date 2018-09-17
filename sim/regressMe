@@ -156,7 +156,7 @@ SECTION3:
 echo "**********************************"
 echo "SECTION 3: v6502 test cases"
 echo "**********************************"
-setenv PYTHONPATH .:../:../source:../rombo:../examples:../examples/v6502
+setenv PYTHONPATH .:../:../lib:../source:../examples:../examples/v6502
 
 # reset local counters
 set tests = 0
@@ -260,7 +260,7 @@ SECTION5:
 echo "**********************************"
 echo "SECTION 5: v6800 test cases"
 echo "**********************************"
-setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6800
+setenv PYTHONPATH .:../source:../lib:../examples:../examples/v6800
 
 # reset local counters
 set tests = 0
@@ -333,7 +333,7 @@ SECTION6:
 echo "**********************************"
 echo "SECTION 6: Long v6502 test cases"
 echo "**********************************"
-setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6502
+setenv PYTHONPATH .:../source:../lib:../examples:../examples/v6502
 
 # reset local counters
 set tests = 0
