@@ -1,0 +1,424 @@
+#!/bin/tcsh -f
+
+# .regressMe [python|pypy|jython] [1|2|3|4]
+#
+# Any python interpreter for 1st argument
+# Second argument jumps to the numbered section directly 
+#
+set total_fails = 0
+set total_tests = 0
+set fails = 0 
+set tests = 0
+
+if ($# > 0) then
+    set EXECUTABLE = $1
+else
+    set EXECUTABLE = pypy
+endif
+
+if ( -e logs ) rm -rf logs
+mkdir logs
+
+echo "Running regression using " $EXECUTABLE
+which $EXECUTABLE
+
+# Run the simple test cases first (with self checking vectors)
+setenv PYTHONPATH .:../:../lib:../source:../examples:../examples/v6502:examples/alu16
+sed 's/nop/dex/g' ../examples/v6502/v6502_nop_tb.py | sed 's/11101010/11001010/g' > ../examples/v6502/v6502_dex_tb.py
+sed 's/nop/inx/g' ../examples/v6502/v6502_nop_tb.py | sed 's/11101010/11101000/g' > ../examples/v6502/v6502_inx_tb.py
+# make a bidir nmos lib
+sed 's/UNMOS/NMOS/g' nmos_lib.py > bidir_nmos_lib.py
+
+
+set regdir = ../examples
+set logdir = logs
+set testList = `ls -1 $regdir/*tb.py`
+
+if ($# == 2) goto "SECTION"$2
+
+SECTION1:
+echo "**********************************"
+echo "SECTION 1: Simple testbenches"
+echo "**********************************"
+set idx = 0
+foreach option ( '' '--gateopt' )
+    if $option != "" then
+        echo "1.$idx - using $option"
+    else
+        echo "1.$idx - no additional options" 
+    endif
+    foreach test ( $testList[*] )
+        set testname = $test:t:r
+        echo -n "  $testname ... "
+        @ tests++
+        $EXECUTABLE -O sim.py --top $testname --filename $test  $option > $logdir/${testname}${option}.log
+        if ( $status != 0 ) then
+            @ fails++
+            echo "FAIL"
+        else
+            if ( `grep -c PASS $logdir/${testname}${option}.log` > 0 ) then
+                echo "PASS"
+            else
+                echo "FAIL"
+                @ fails ++
+            endif
+        endif
+    end
+    @ idx ++
+end
+
+if ( $fails > 0 ) then
+   echo "Failed "$fails" out of " $tests " tests"
+else
+  echo "Passed all "$tests "tests"
+endif
+
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+
+SECTION2:
+echo "**********************************"
+echo "SECTION 2: alu16 test cases"
+echo "**********************************"
+# reset local counters
+set tests = 4
+set fails = 0
+# Update library and prepare testbench for nmos version
+sed 's/UNMOS/NMOS/g' nmos_lib.py > bidir_nmos_lib.py
+set max = 16384
+
+# prepare bidir tb
+sed 's/nmos/bidir_nmos/g' ../examples/count4_nmos.py > ../examples/count4_bidir_nmos.py
+sed 's/count4/count4_bidir_nmos/g' ../examples/count16.py |\
+    sed 's/count16/count16_bidir_nmos/g' > ../examples/count16_bidir_nmos.py
+sed 's/sn74181alu/sn74181alu_bidir_nmos/g' ../examples/alu16/alu16_tb.py |\
+    sed 's/count16/count16_bidir_nmos/g' > ../examples/alu16/alu16_bidir_tb.py
+
+# prepare unidir tb
+sed 's/count4/count4_nmos/g' ../examples/count16.py |\
+    sed 's/count16/count16_nmos/g' > ../examples/count16_nmos.py
+sed 's/sn74181alu/sn74181alu_nmos/g' ../examples/alu16/alu16_tb.py |\
+    sed 's/count16/count16_nmos/g' > ../examples/alu16/alu16_nmos_tb.py
+sed 's/nmos/bidir_nmos/g' ../examples/sn74181alu_nmos.py > ../examples/sn74181alu_bidir_nmos.py
+
+set testbench = "alu16_tb"
+echo -n "Running ALU16 reference simulation ..."
+$EXECUTABLE -O sim.py --top alu16_tb --filename ../examples/alu16/$testbench.py \
+            --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' \
+            --max $max  | tee $logdir/$testbench.log | grep -v '*' > ${testbench}.trace
+$EXECUTABLE -O sim.py --top alu16_tb --filename ../examples/alu16/$testbench.py --nostrobe --max $max > $logdir/${testbench}.notrace.log
+echo " DONE "
+echo `grep Hz  $logdir/${testbench}.notrace.log`
+
+set idx = 0
+foreach option ( '' '--gateopt' )
+    if $option != "" then
+        echo "2.$idx - Running nmos testbenches using $option"
+    else
+        echo "2.$idx - Running nmos testbenches with no additional options " 
+    endif
+    foreach testbench ( 'alu16_nmos_tb' 'alu16_bidir_tb') 
+        echo -n "Running ALU16 testbench $testbench ... "
+        $EXECUTABLE -O sim.py --top alu16_tb --filename ../examples/alu16/$testbench.py \
+                    --tracelist 'rstb - phi - qq[0-9]* - q[0-9].* - .*alu_0_u\.CLAmod3.Pbuf.*' \
+                    --max $max $option | tee $logdir/${testbench}${option}.log | grep -v '*' > ${testbench}${option}.trace
+        $EXECUTABLE -O sim.py --top alu16_tb --filename ../examples/alu16/$testbench.py --nostrobe --max $max  $option > $logdir/${testbench}${option}.notrace.log
+        echo " DONE "
+        echo `grep Hz  $logdir/${testbench}${option}.notrace.log`
+        echo -n "Comparing logic traces vs reference traces ... "
+        if  (`diff -q -wB ${testbench}${option}.trace  alu16_tb.trace` != "") then
+            echo "FAIL"
+            @ fails++
+        else
+            echo "PASS"
+        endif
+    end
+    @ idx++
+end
+
+
+if ( $fails > 0 ) then
+   echo "Failed "$fails" out of " $tests " tests"
+else
+  echo "Passed all "$tests "tests"
+endif
+
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+
+# remove temporary files
+# rm -f ../examples/alu16/alu16_nmos_tb.py nmos_logic.trace alu_logic.trace
+
+
+SECTION3:
+echo "**********************************"
+echo "SECTION 3: v6502 test cases"
+echo "**********************************"
+setenv PYTHONPATH .:../:../source:../rombo:../examples:../examples/v6502
+
+# reset local counters
+set tests = 0
+set fails = 0
+# Setup regression for v6502 database
+set regdir = ../examples/v6502
+set logdir = logs
+
+echo -n "Preparing hex files from assembler source ..."
+# Assemble all the test source
+pushd $regdir >& /dev/null
+make all
+set testList = `ls -1 *as`
+# revise the test list so that only tests which actually have a 
+# RAM footprint for comparison make the cut and cut out the long tests
+set testList = `ls -1r *ram.golden | sed 's/.golden//g' | grep -v programfortoday`
+
+popd >& /dev/null
+
+echo " DONE"
+
+echo "Running v6502 regression test cases ..."
+# Now run all the tests 
+set MAX = 512
+
+foreach test ( $testList[*] ) 
+	set testname = $test:t:r
+        @ tests++
+        echo -n "  $testname ... "
+
+        $EXECUTABLE -O sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py \
+                    --romfile "$regdir/$testname.ihex" --max $MAX \
+                    --ramdump "filename=$regdir/$testname.ram:lo=0:numbytes=128" \
+                    --tracelist 'rstb_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w -' \
+                    --tracemode 'end' \
+                    --nostrobe --gateopt \
+#                    --tracelist 'phi0_w v6502_0_u.n358 v6502_0_u.n1715 v6502_0_u.cp1 v6502_0_u.n1129 v6502_0_u.n1467 - .*n1105 - .*' \
+                    >& $logdir/$testname.log
+        if ( $status != 0 || \
+                `diff -q -wB $regdir/$testname.ram $regdir/$testname.ram.golden` != "") then
+           echo "FAIL"
+           # echo "** ERROR files are different for test "$testname
+           # diff -wB   $regdir/$testname.ram $regdir/$testname.ram.golden
+           @ fails++
+        else
+             echo "PASS"
+        endif
+        echo `grep Hz  $logdir/${testname}.log`
+
+end
+if ( $fails > 0 ) then
+   echo "Failed "$fails" out of " $tests " tests"
+else
+  echo "Passed all "$tests "tests"
+endif
+
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+SECTION4:
+echo "**********************************"
+echo "SECTION 4: v6502 raw speed test"
+echo "**********************************"
+echo "Running raw speed test for v6502 testbenches - no tracing"
+set tests = 0
+set fails = 0
+set steps = 4096
+set regdir = ../examples/v6502
+set logdir = logs
+
+
+foreach option ( "" "--gateopt")
+    if $option == "" then 
+        echo "4.0 Running on 100% transistor model (NMOS + UNMOS)"
+    else
+        echo "4.1 Running on gate optimized model"
+    endif
+    echo -n " Hardwired NOP model..."
+    set testname = "v6502_nop_tb"
+    $EXECUTABLE -O sim.py --top v6502_nop_tb --filename ../examples/v6502/v6502_nop_tb.py --nostrobe --max $steps $option > ${logdir}/${testname}${option}.log
+    if ( $status != 0 ) @ fails ++
+    echo "DONE"
+    echo `grep Hz  $logdir/${testname}${option}.log`
+   @ tests ++    
+    echo -n " Default JSsim program..."
+    set testname = "jssim_program"
+    $EXECUTABLE -O sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py \
+                    --romfile "$regdir/$testname.ihex" --max $steps --nostrobe $option \
+                        >& $logdir/${testname}${option}.log
+    if ( $status != 0 ) @ fails ++
+    echo "DONE"
+    echo `grep Hz  $logdir/${testname}${option}.log`
+    @ tests ++    
+end
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+
+
+SECTION5:
+echo "**********************************"
+echo "SECTION 5: v6800 test cases"
+echo "**********************************"
+setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6800
+
+# reset local counters
+set tests = 0
+set fails = 0
+# Setup regression for v6800 database
+set regdir = ../examples/v6800
+set logdir = logs
+
+echo -n "Preparing hex files from assembler source ..."
+# Assemble all the test source
+pushd $regdir >& /dev/null
+set testList = `ls -1 *as`
+foreach t ( $testList[*] ) 
+    make $t:r.ihex >& /dev/null
+    if ( $status != 0 )then
+        echo "ERROR in preparing ROM code from $t"
+        exit 1
+    endif
+end
+# revise the test list so that only tests which actually have a 
+# RAM footprint for comparison make the cut
+set testList = `ls -1r *ram.golden | sed 's/.golden//g'`
+
+popd >& /dev/null
+
+echo " DONE"
+
+echo "Running v6800 regression test cases ..."
+# Now run all the tests 
+set MAX = 8192
+
+foreach test ( $testList[*] ) 
+	set testname = $test:t:r
+        @ tests++
+        echo -n "  $testname ... "
+
+        $EXECUTABLE -O sim.py --top v6800_system_tb --filename ../examples/v6800/v6800_system_tb.py \
+                    --romfile "$regdir/$testname.ihex" \
+                    --ramdump "filename=$regdir/$testname.ram:lo=0:numbytes=256" \
+                    --tracelist '- rstb_w phi1_w phi2_w - addr.* - data.* - rnw_w vma_w - v6800_0_u.ir.' \
+                    --tracemode 'end' \
+                    --nostrobe  --gateopt --max $MAX  \
+                    >& $logdir/$testname.log
+
+        if ( $status != 0 || \
+                `diff -q -wB $regdir/$testname.ram $regdir/$testname.ram.golden` != "") then
+           echo "FAIL"
+           # echo "** ERROR files are different for test "$testname
+           # diff -wB   $regdir/$testname.ram $regdir/$testname.ram.golden
+           @ fails++
+        else
+             echo "PASS"
+        endif
+        echo `grep Hz  $logdir/${testname}.log`
+
+end
+if ( $fails > 0 ) then
+   echo "Failed "$fails" out of " $tests " tests"
+else
+  echo "Passed all "$tests "tests"
+endif
+
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+
+
+
+SECTION6:
+echo "**********************************"
+echo "SECTION 6: Long v6502 test cases"
+echo "**********************************"
+setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6802
+
+# reset local counters
+set tests = 0
+set fails = 0
+# Setup regression for v6502 database
+set regdir = ../examples/v6502
+set logdir = logs
+
+echo -n "Preparing hex files from assembler source ..."
+# Assemble all the test source
+pushd $regdir >& /dev/null
+set testList = `ls -1 *as | egrep '(programfortoday)'`
+foreach t ( $testList[*] ) 
+    make $t:r.ihex >& /dev/null
+    if ( $status != 0 )then
+        echo "ERROR in preparing ROM code from $t"
+        exit 1
+    endif
+end
+# revise the test list so that only tests which actually have a 
+# RAM footprint for comparison make the cut
+set testList = `ls -1r *ram.golden | sed 's/.golden//g' | egrep '(programfortoday)'`
+
+popd >& /dev/null
+
+echo " DONE"
+
+echo "Running v6502 regression test cases ..."
+# Now run all the tests 
+set MAX = 80000
+
+foreach test ( $testList[*] ) 
+	set testname = $test:t:r
+        @ tests++
+        echo -n "  $testname ... "
+
+        $EXECUTABLE -O sim.py --top v6502_system_tb --filename ../examples/v6502/v6502_system_tb.py \
+                    --romfile "$regdir/$testname.ihex" --max $MAX \
+                    --ramdump "filename=$regdir/$testname.ram:lo=0:numbytes=128" \
+                    --tracelist 'rstb_w - phi1_w phi2_w - addr.* - data.* - sob_w rnw_w sync_w -' \
+                    --tracemode 'end' \
+                    --nostrobe --gateopt \
+#                    --tracelist 'phi0_w v6502_0_u.n358 v6502_0_u.n1715 v6502_0_u.cp1 v6502_0_u.n1129 v6502_0_u.n1467 - .*n1105 - .*' \
+                    >& $logdir/$testname.log
+        if ( $status != 0 || \
+                `diff -q -wB $regdir/$testname.ram $regdir/$testname.ram.golden` != "") then
+           echo "FAIL"
+           # echo "** ERROR files are different for test "$testname
+           # diff -wB   $regdir/$testname.ram $regdir/$testname.ram.golden
+           @ fails++
+        else
+             echo "PASS"
+        endif
+        echo `grep Hz  $logdir/${testname}.log`
+
+end
+if ( $fails > 0 ) then
+   echo "Failed "$fails" out of " $tests " tests"
+else
+  echo "Passed all "$tests "tests"
+endif
+
+@ total_tests = $total_tests + $tests
+@ total_fails = $total_fails + $fails
+
+
+
+
+echo "******************************************************"
+if ( $total_fails == 0 && $total_tests > 0 ) then
+    echo "            "
+    echo "  o     o   "
+    echo "     |       SUCCESS - passed all $total_tests regression tests"
+    echo "  \_____/   "
+    echo "            "
+else
+    echo "            "
+    echo "  x     x   "
+    echo "     |       FAIL - failed $total_fails out of $total_tests regression tests"    
+    echo "   _____   "
+    echo "           "
+    echo ""
+endif
+echo "******************************************************"
+
+
+# clean up
+rm *.trace 

@@ -1,7 +1,7 @@
 import gate
 import net
 from testbench import testbench
-from source import v6502
+from v6502 import v6502
 
 
 class v6502_dex_tb(testbench):
