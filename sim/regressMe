@@ -333,7 +333,7 @@ SECTION6:
 echo "**********************************"
 echo "SECTION 6: Long v6502 test cases"
 echo "**********************************"
-setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6802
+setenv PYTHONPATH .:../source:../rombo:../examples:../examples/v6502
 
 # reset local counters
 set tests = 0
