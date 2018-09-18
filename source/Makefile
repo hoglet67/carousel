@@ -12,7 +12,7 @@ v80.py:
 all: v6800.py v6502.py v80.py
 
 clean:
-	rm v*py *~
+	rm -f v*py *~
 
 
 
