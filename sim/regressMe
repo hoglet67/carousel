@@ -163,7 +163,9 @@ set tests = 0
 set fails = 0
 # Setup regression for v6502 database
 set regdir = ../examples/v6502
-set logdir = logs
+if ( -e logs/v6502 ) rm -rf logs/v6502
+mkdir -p logs/v6502
+set logdir = logs/v6502
 
 echo -n "Preparing hex files from assembler source ..."
 # Assemble all the test source
@@ -225,7 +227,8 @@ set tests = 0
 set fails = 0
 set steps = 4096
 set regdir = ../examples/v6502
-set logdir = logs
+if (! -e logs/v6502 ) mkdir -p logs/v6502
+set logdir = logs/v6502
 
 
 foreach option ( "" "--gateopt")
@@ -267,7 +270,8 @@ set tests = 0
 set fails = 0
 # Setup regression for v6800 database
 set regdir = ../examples/v6800
-set logdir = logs
+if (! -e logs/v6800 ) mkdir -p logs/v6800
+set logdir = logs/v6800
 
 echo -n "Preparing hex files from assembler source ..."
 # Assemble all the test source
@@ -340,7 +344,8 @@ set tests = 0
 set fails = 0
 # Setup regression for v6502 database
 set regdir = ../examples/v6502
-set logdir = logs
+mkdir -p logs/v6502
+set logdir = logs/v6502
 
 echo -n "Preparing hex files from assembler source ..."
 # Assemble all the test source
