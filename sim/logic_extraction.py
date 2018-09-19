@@ -79,7 +79,7 @@ def eliminate_common_sd_transistors(mod, hier=True, verbose=False):
     delete_set = set()
     for tr in transistor_list:
         if tr.port['SOURCE'].netconn == tr.port['DRAIN'].netconn:
-            delete_set.add(tr)
+            delete_set.add(tr)            
 
     if verbose:
         print "DONE\n* - Found %d." % len(delete_set)
@@ -280,7 +280,7 @@ def logic_extraction(mod, hier=True , verbose = False, top_module = True, debug 
                 if revised_pulldown:
                     pulldown[n] = revised_pulldown
                 else:
-                    pulldown.remove(n)
+                    pulldown.pop(n)
 
     delete_set = set()
     newgate_list = []
@@ -344,7 +344,7 @@ def logic_extraction(mod, hier=True , verbose = False, top_module = True, debug 
                 newgate_idx += 1
                 successful_ident=True
             else:
-                newgate_list.append((my_parent, primitive.NAND_OD("reopt_gate_%d" % newgate_idx, n, gatepin_list, \
+                newgate_list.append((my_parent, primitive.NAND_OD("reopt_gate_%d" % newgate_idx, n, [p[0] for p in gatepin_list], \
                                                                      pulldown_str=net.SUPPLY_STR, pullup_str=n.pullup_str,\
                                                                      parent=my_parent)))
                 newgate_idx += 1

@@ -881,7 +881,7 @@ class NAND_OD(primitive):
     NAND_OD OUTPUT [inputs]
 
     '''
-    def __init__(self, name, outputnet,  nlist, parent=None, strength=net.SUPPLY_STR) :
+    def __init__(self, name, outputnet,  nlist, parent=None, strength=net.SUPPLY_STR, pullup_str=None, pulldown_str=None) :
         self.inputlist = nlist
         self.outputnet = outputnet
 
