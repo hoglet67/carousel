@@ -32,7 +32,7 @@ sed 's/UNMOS/NMOS/g' nmos_lib.py > bidir_nmos_lib.py
 
 set regdir = ../examples
 set logdir = logs
-set testList = `ls -1 $regdir/*tb.py`
+set testList = `ls -1 $regdir/*tb.py | grep -v sram4x4_tb`
 
 if ($# == 2) goto "SECTION"$2
 

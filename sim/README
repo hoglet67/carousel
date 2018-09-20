@@ -15,6 +15,9 @@ sed 's/nop/inx/g' ../examples/v6502/v6502_nop_tb.py | sed 's/11101010/11101000/g
 # make a bidir nmos lib
 sed 's/UNMOS/NMOS/g' nmos_lib.py > bidir_nmos_lib.py
 
+
+python2.7 sim.py --top sram4x4_tb --filename ../examples/sram4x4_tb.py --tracelist 'data3_in data2_in data1_in data0_in - write - word3 word2 word1 word0 - q33 q32 q31 q30 - q33_b q32_b q31_b q30_b - q23 q22 q21 q20 - q23_b q22_b q21_b q20_b - q13 q12 q11 q10 - q13_b q12_b q11_b q10_b - q03 q02 q01 q00 - q03_b q02_b q01_b q00_b - bit3 bit2 bit1 bit0 - bit3_b bit2_b bit1_b bit0_b - n10 n20' --tracemode event
+
 # simple ../examples
 python sim.py --top domino_tb --filename ../examples/domino_tb.py --tracelist 'in0 in1 in2 - prech - n0 n1 n2 n3 - out ' --max 16 
 pypy sim.py --top cmos_tb --filename ../examples/cmos_tb.py --tracelist 'in0 in1 - n0 - out - vss vdd' --max 16 
